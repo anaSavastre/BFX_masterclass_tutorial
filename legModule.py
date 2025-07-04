@@ -1,11 +1,23 @@
 from maya import cmds as mc
 from maya.api import OpenMaya as om
+
+from collections import OrderedDict
+
 from . import controlFn as ctlFn
 from . import static
 from . import functions as fn
 
 class LegModule:
+
+    '''
+    Modules for constructing a leg.
+
+
+
+    TODO: For production uses 
+    '''
     def __init__(self, name, parent, legGuides):
+        print('LEG')
         self.name=name
         self.side=name[0]
         self.parent=parent
@@ -18,15 +30,14 @@ class LegModule:
         self.toesGuide = legGuides[2]
         self.toeEndGuide = legGuides[3]
 
-        # Unparent toe guide from ankle
+        # Un-parent toe guide from ankle
         mc.parent(self.toesGuide, w=1)
     
         # Hip Ctl
-        hipCtl = ctlFn.add_control(self.hipGuide, name+'Hip', parent, shapeName='root', deleteGuide=False)
+        hipCtl = ctlFn.add(self.hipGuide, name+'Hip', parent, shapeName='root', deleteGuide=False)
 
-        # AnkleCtl
-        
-        ankleCtl = ctlFn.add_control(self.ankleGuide, name+'Ankle', static.ctlGroup, shapeName='root', deleteGuide=False)
+        # AnkleCtl        
+        ankleCtl = ctlFn.add(self.ankleGuide, name+'Ankle', static.ctlGroup, shapeName='root', deleteGuide=False)
         mc.hide(self.ankleGuide)
 
         # Flip the right side ankle so that it points the same way as our left side
@@ -37,13 +48,13 @@ class LegModule:
         # We want to extract our ctl's X axis and translate our ctl to the side
         guide = mc.createNode('transform', name='tmp')
         mc.xform(guide, ws=1, m=mc.xform(ankleCtl.trn, ws=1, m=1, q=1))
-        # here we would want to find a reliable way of how far apart we want our settings ctl rather than have it hard coded to 2
+        # here we would want to find a reliable way of how far apart we want our settings ctl rather than have it hard coded value
         mc.setAttr(guide+'.tx', -1.5 if self.name[0]=='R' else 1.5) 
-        self.settingsCtl = ctlFn.add_control(guide, self.name+'Settings', ankleCtl.trn, 'diamond')
-        ctlFn.scale_control(self.settingsCtl.trn, .15)
+        self.settingsCtl = ctlFn.add(guide, self.name+'Settings', ankleCtl.trn, 'diamond')
+        self.settingsCtl.scale_shape(.15)
         
         # Toe ctl
-        toeCtl = ctlFn.add_control(self.toesGuide, name+'Toe', ankleCtl.trn, shapeName='root', deleteGuide=False)
+        toeCtl = ctlFn.add(self.toesGuide, name+'Toe', ankleCtl.trn, shapeName='root', deleteGuide=False)
         mc.parent(self.toesGuide, toeCtl.trn)
 
         # Build Leg IK
@@ -66,7 +77,25 @@ class LegModule:
 
     def build_pole_vector_control(self, hip, knee, ankle):
         '''
-        Here we calculate the position of our pole vector
+        This function will create the pole vector control.
+         
+        1. First we calculate the position of the pole vector.
+
+        We will project the vector between the hip and knee onto the vector between the hip and ankle. 
+        The pole vector will have the same length as the hip-knee vector and it will be along the vector between the knee projection and knee
+
+        2. We build a control at the calculated location
+
+        Parameters
+        ----------
+        hip     : str : name to hip guide
+        knee    : str : name to knee guide 
+        ankle   : str : name to ankle guide 
+
+        Returns
+        -------
+        ctl: controlStruct
+
         '''
         hipPosition = om.MVector(*mc.xform(hip, ws=1, q=1, t=1))
         kneePosition = om.MVector(*mc.xform(knee, ws=1, q=1, t=1))
@@ -87,11 +116,26 @@ class LegModule:
         pos = kneePosition+(poleVectorDirection*hipKneeVector.length())
         mc.xform(poleGuide, ws=1, t=[pos.x, pos.y, pos.z])
 
-        pole_vect_ctl = ctlFn.add_control(poleGuide, self.name+'PoleVector', static.rigGroup, shapeName='locator')
+        # Building the control
+        pole_vect_ctl = ctlFn.add(poleGuide, self.name+'PoleVector', static.rigGroup, shapeName='locator')
 
         return pole_vect_ctl
 
     def stretch_IK(self, hipCtl, ankleCtl):
+        '''
+        This function will make our IK stretchy.
+        
+        We will do this by extracting a 
+            lengthRatio = hipAnkle.len / hipAnkle.len0(in bind pose)
+        
+        Then we will multiply each joints translation x attribute by the lengthRatio:
+            knee.tX = max(lengthRatio, 1) * knee.tX(in bind pose)
+            ankle.tX = max(lengthRatio, 1) * ankle.tX(in bind pose)
+
+        Returns
+        -------
+        None
+        '''
         # Creating stretch guides
         hipStretch = mc.createNode('transform', name=self.name+'HipStretchGuide')
         mc.parent(hipStretch, hipCtl)
@@ -129,24 +173,87 @@ class LegModule:
         mc.setAttr(lowerLegStretch+'.input2', mc.getAttr(self.ankleGuide+'.translateX'))
         mc.connectAttr(lowerLegStretch+'.output', self.ankleGuide+'.translateX')
 
-    def build_leg_surface(self, surface, jntGuides):
+    def __build_surface_controls(self):
         '''
-        We want to construct a nurbs surface as well as some shape control
+        Constructing the surface controls: 
+            - Hip control
+            - Mid Upper leg ctl: at the mid point between the hip and knee
+            - Knee ctl
+            - Mid Lower leg ctl: at the mid point between knee and ankle
+            - Ankle ctl
 
-        We will have 
-        - Hip control,
-        - Mid Upper leg ctl: at the mid point between the hip and knee
-        - Knee ctl
-        - Mid Lower leg ctl: at the mid point between knee and ankle
-        - ankle ctl
+        Returns
+        -------
+        surfaceControls: dict = {
+                                'ctlName' : controlStruct
+                                }
         '''
-
-        # Let's construct our nurbs surface influences -> Our leg shape controls
-        def createGuide(name, position, orientObjects):
+        
+        def create_guide(name, position, orientObjects):
             guide = mc.createNode('transform', name=name)
             mc.xform(guide, ws=1, t=position)
             mc.delete(mc.orientConstraint(*orientObjects+[guide]))
             return guide
+        # Constructing our control guides
+        hipPosition = om.MVector(*mc.xform(self.hipGuide, ws=1, q=1, t=1))
+        kneePosition = om.MVector(*mc.xform(self.kneeGuide, ws=1, q=1, t=1))
+        anklePosition = om.MVector(*mc.xform(self.ankleGuide, ws=1, q=1, t=1))
+        
+        hipGuide = create_guide('hip', hipPosition, [self.hipGuide])
+        
+        midUpperGuide = create_guide('legUpper', hipPosition+(kneePosition - hipPosition)/2, [self.hipGuide, self.kneeGuide])
+        
+        kneeGuide = create_guide('knee', kneePosition, [self.kneeGuide])
+        
+        midLowerGuide = create_guide('legLower', kneePosition+(anklePosition - kneePosition)/2, [self.kneeGuide])
+        
+        ankleGuide = create_guide('ankle', anklePosition, [self.kneeGuide])
+
+        # Constructing controls from our guides
+        surfaceControls = OrderedDict()
+        for guide, name in zip([hipGuide, midUpperGuide, kneeGuide, midLowerGuide, ankleGuide], ['Hip', 'UpperLeg', 'Knee', 'LowerLeg', 'Ankle']):
+            surfaceControls[name] = ctlFn.add(guide, self.name+name+'ShapeCtl', parent=self.hipCtl.trn, shapeName='root', deleteGuide=True)
+        print("SURFACE CONTROLS", surfaceControls)
+        return surfaceControls
+    
+    def __attach_surface_joints(self, surface, jntGuides):
+        '''
+        Creating a surface joint for each guide
+        
+        Returns
+        -------
+        None
+        '''
+        for guide in jntGuides:
+            bindJnt = mc.createNode('joint', name=guide.replace('LOC', 'JNT'))
+            mc.parent(bindJnt, static.jntGroup)
+            # Find closest point on surface
+            u, v = fn.get_closest_UV_on_Surface(surface, mc.xform(guide, q=1, ws=1, t=1))
+            # Rivet to surface
+            fn.rivet_to_surface(surface, bindJnt, u, v)
+            mc.delete(guide)
+
+    def build_leg_surface(self, surface, jntGuides):
+        '''
+        This function takes in a nurbs surface and a list of joints and we construct a ribbon leg set-up.
+
+        1. The control system will consist of the following controls:
+            
+            - Hip control
+            - Mid Upper leg ctl: at the mid point between the hip and knee
+            - Knee ctl
+            - Mid Lower leg ctl: at the mid point between knee and ankle
+            - Ankle ctl
+
+        We will use these controls to drive our nurbs surface, by skinning the surface to the controls
+
+        NOTE: To upgrade the implementation of this module we could generate the nurbs surface from our guides as well. After we have created the list of controls we can then define a set of 4 points along each of the up vectors of the control. 
+
+        2. Second part of the set-up focuses on driving the  will requires us to drive the controls 
+        '''
+
+        # Let's construct our nurbs surface influences -> Our leg shape controls
+        
         
         def localMatrix(shapeName, transform, parentTransform):
             matrixDifference = mc.createNode('multMatrix', name=self.name+shapeName+'Twist_MMT')
@@ -160,25 +267,8 @@ class LegModule:
 
         mc.parent(surface, static.rigGroup)
         
-        hipPosition = om.MVector(*mc.xform(self.hipGuide, ws=1, q=1, t=1))
-        kneePosition = om.MVector(*mc.xform(self.kneeGuide, ws=1, q=1, t=1))
-        anklePosition = om.MVector(*mc.xform(self.ankleGuide, ws=1, q=1, t=1))
-        
-        hipGuide = createGuide('hip', hipPosition, [self.hipGuide])
-        
-        midUpperGuide = createGuide('legUpper', hipPosition+(kneePosition - hipPosition)/2, [self.hipGuide, self.kneeGuide])
-        
-        kneeGuide = createGuide('knee', kneePosition, [self.kneeGuide])
-        
-        midLowerGuide = createGuide('legLower', kneePosition+(anklePosition - kneePosition)/2, [self.kneeGuide])
-        
-        ankleGuide = createGuide('ankle', anklePosition, [self.kneeGuide])
-
-
-        surfaceControls = {}
-        for guide, name in zip([hipGuide, midUpperGuide, kneeGuide, midLowerGuide, ankleGuide], ['Hip', 'UpperLeg', 'Knee', 'LowerLeg', 'Ankle']):
-            surfaceControls[name] = ctlFn.add_control(guide, self.name+name+'ShapeCtl', parent=self.hipCtl.trn, shapeName='root', deleteGuide=True)
-            
+       
+        surfaceControls = self.__build_surface_controls()     
         skinCluster = mc.skinCluster([elem.jnt for elem in surfaceControls.values()], surface)
 
         # DRIVING SHAPE CONTROLS
@@ -188,10 +278,14 @@ class LegModule:
         # Parent Knee shape ctl to knee guide
         mc.parentConstraint(self.kneeGuide, surfaceControls['Knee'].grp, mo=0)
         # Drive upper and lower leg 
-        for shapeName, pair in zip(['UpperLeg', 'LowerLeg'], [['Hip', 'Knee'], ['Knee', 'Ankle']]):
+        surfaceControlsKeys = list(surfaceControls.keys())
+        surfaceControlsValues = list(surfaceControls.values())
+        for index in [1, 3]:
+            shapeName = surfaceControlsKeys[index]
+
             # Point constraining mid controls between pairs
-            upperInfluence = surfaceControls[pair[0]]
-            lowerInfluence = surfaceControls[pair[1]]
+            upperInfluence = surfaceControlsValues[index-1]
+            lowerInfluence = surfaceControlsValues[index+1]
             control = surfaceControls[shapeName]
             mc.pointConstraint(upperInfluence.trn, lowerInfluence.trn, control.grp)
             # Simple Aim
@@ -199,7 +293,7 @@ class LegModule:
 
             # Aim with up vector 
             # Getting an up vector
-            # We want out up vector to blend the twist between our upper and lowe influence. 
+            # We want out up vector to blend the twist between our upper and lower influence. 
             # We will take the our two influences in the space of the hip. take their rotations and add 0.5 of each one
             upVectorTrn = mc.createNode('transform', name=self.name+shapeName+'UpObject_TRN')
             mc.parent(upVectorTrn, control.grp)
@@ -219,20 +313,8 @@ class LegModule:
 
             
         # Let's rivet jnts along surface
-        for guide in jntGuides:
-            bindJnt = mc.createNode('joint', name=guide.replace('LOC', 'JNT'))
-            mc.parent(bindJnt, static.jntGroup)
-            # Find closest point on surface
-            u, v = fn.get_closest_UV_on_Surface(surface, mc.xform(guide, q=1, ws=1, t=1))
-            # Rivet to surface
-            fn.rivet_to_surface(surface, bindJnt, u, v)
-            mc.delete(guide)
+        self.__attach_surface_joints(surface, jntGuides)
 
-
-        '''
-        rivet: 
-        pointOnSurface -> [[tangentU], [normal], [tangentU*normal], [position]] -> decompose -> locator.T; locator.R
-        '''
     
     def foot_Roll(self, footGuides):
         # Sort our foot guides
@@ -245,9 +327,9 @@ class LegModule:
         # Create heel control and toe control
         if self.name[0] == 'R':
             [mc.xform(loc, ro=[0, 180, 0], r=1) for loc in locators]
-        heelCtl = ctlFn.add_control(locators[0], name=self.name+'Heel', shapeName='locator', deleteGuide=False, parent=self.ankleCtl.trn)
+        heelCtl = ctlFn.add(locators[0], name=self.name+'Heel', shapeName='locator', deleteGuide=False, parent=self.ankleCtl.trn)
         
-        footTipCtl = ctlFn.add_control(locators[-1], name=self.name+'FootTip', shapeName='locator', deleteGuide=False, parent=self.ankleCtl.trn)
+        footTipCtl = ctlFn.add(locators[-1], name=self.name+'FootTip', shapeName='locator', deleteGuide=False, parent=self.ankleCtl.trn)
 
         # Create our inverse foot roll hierarchy
         inverseHierarchy = []
