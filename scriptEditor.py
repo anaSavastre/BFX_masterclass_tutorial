@@ -30,7 +30,7 @@ if __name__ == '__main__':
     ###########################################################################
 
     ##- Create a COG control
-    root = controlFn.add_control('C_root00_JNT', 'C_root00', parent=static.ctlGroup, shapeName='root')
+    root = controlFn.add('C_root00_JNT', 'C_root00', parent=static.ctlGroup, shapeName='root')
     controlFn.scale_control(root.trn, 2)
 
     ##- Creating Leg
