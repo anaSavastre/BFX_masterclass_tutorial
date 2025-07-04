@@ -1,9 +1,8 @@
 from maya import cmds as mc
 from maya import OpenMaya as om
 import os, json
-import static
-import controlFn as ctlFn
-
+from . import static
+from . import controlFn as ctlFn
 
 
 def build_rig_scene(assetName):
