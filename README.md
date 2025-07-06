@@ -10,7 +10,7 @@ To start playing with the code and the build file, please copy the shared folder
 
 ## Running the code
 
-To run the code you can open the `scriptEditor.py` file in your maya script editor.
+To run the code you can open the `build/Ellie.py` file in your maya script editor.
 
 Let's go over the content of this file
 
