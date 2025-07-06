@@ -2,10 +2,11 @@ from maya import cmds as mc
 from maya.api import OpenMaya as om
 
 from collections import OrderedDict
+import logging
 
-from . import controlFn as ctlFn
-from . import static
-from . import functions as fn
+from BFX_masterclass.utils import controls as ctlFn
+from BFX_masterclass.utils import functions as fn
+from BFX_masterclass import static
 
 class LegModule:
 
@@ -17,7 +18,7 @@ class LegModule:
     TODO: For production uses 
     '''
     def __init__(self, name, parent, legGuides):
-        print('LEG')
+        logging.info('Initializing Leg Module')
         self.name=name
         self.side=name[0]
         self.parent=parent
@@ -213,7 +214,6 @@ class LegModule:
         surfaceControls = OrderedDict()
         for guide, name in zip([hipGuide, midUpperGuide, kneeGuide, midLowerGuide, ankleGuide], ['Hip', 'UpperLeg', 'Knee', 'LowerLeg', 'Ankle']):
             surfaceControls[name] = ctlFn.add(guide, self.name+name+'ShapeCtl', parent=self.hipCtl.trn, shapeName='root', deleteGuide=True)
-        print("SURFACE CONTROLS", surfaceControls)
         return surfaceControls
     
     def __attach_surface_joints(self, surface, jntGuides):

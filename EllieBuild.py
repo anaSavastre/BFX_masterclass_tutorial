@@ -1,12 +1,7 @@
-import sys
-import os
-
-sys.path.append(r'C:/Users/{}/Documents/maya/projects/BFX_masterclass/CHR_Ellie/scripts'.format(os.environ.get('USERNAME')))
-
-
 from maya import cmds as mc
-from BFX_masterclass.utils import pipeline, controls
+from BFX_masterclass.utils import pipeline, control
 from BFX_masterclass import legModule, static
+import sys
 
 def flush_python_cache():
 
@@ -19,21 +14,14 @@ def flush_python_cache():
 
 if __name__ == '__main__':
 
-    #- Flushing python cache
     flush_python_cache()
-
-    #- Build simple rig scene
     pipeline.build_rig_scene('CHR_Ellie')
 
+    # Create a COG control
+    root = control.add_control('C_root00_JNT', 'C_root00', parent=static.ctlGroup, shapeName='root')
+    control.scale_control(root.trn, 2)
 
-    #- Main rig build
-    ###########################################################################
-
-    ##- Create a COG control
-    root = controls.add('C_root00_JNT', 'C_root00', parent=static.ctlGroup, shapeName='root')
-    controls.scale_control(root.trn, 2)
-
-    ##- Creating Leg
+    # Creating Leg
     for s in 'LR':
             
         leg = legModule.LegModule(name=s+'_leg', parent=root.trn, legGuides=s+'_leg00_JNT')
@@ -41,7 +29,6 @@ if __name__ == '__main__':
             jntGuides= [s+elem[1:] for elem in['L_legBind00_LOC', 'L_legBind01_LOC', 
             'L_legBind02_LOC', 'L_legBind03_LOC', 'L_legBind04_LOC', 'L_legBind05_LOC', 'L_legBind06_LOC', 
             'L_legBind07_LOC', 'L_legBind08_LOC', 'L_legBind09_LOC']])
-        leg.foot_Roll(s+'_footGuides00_GRP')
+        leg.footRoll(s+'_footGuides00_GRP')
     
-    ###########################################################################
     
