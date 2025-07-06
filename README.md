@@ -16,7 +16,7 @@ Let's go over the content of this file
 
 1. First function we run in here is `flush_python_cache()`. The reason why we need to run this before anything else is because Maya creates a python cash of all the modules that we load, so if we make any changes to functions/modules that live outside the main scope of the file we are running. So we wouldn't really be able to see our changes and updates.
 
-2. Second stage, we are running the `pipelineFn.build_rig_scene('CHR_Ellie')`. This function is a very simple method that will **create a new working scene**, bringing together our latest model file, latest rig components and creating the main hierarchy of the rig, driven by the master move control.
+2. Second stage, we are running the `pipeline.build_rig_scene('CHR_Ellie')`. This function is a very simple method that will **create a new working scene**, bringing together our latest model file, latest rig components and creating the main hierarchy of the rig, driven by the master move control.
 
 3. Third stage is where we start constructing the main components of our rig. 
 In the case of this master class we will be focusing on building a leg, therefore we will add a COG (Center of Gravity control), which will act as out **hips** and then the leg module.
