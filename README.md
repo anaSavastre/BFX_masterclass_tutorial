@@ -39,8 +39,9 @@ I will present a solution for how to procedurally construct your pole vector bas
 This is where things will be getting a bit more complicated. We will create a nurbs surface that will be driven by the IK leg. Along the surface we will rivet a few joints which will be our **bind joints**. 
 
 - **Foot Roll:**
+Here we are creating foot controls and the inverse hierarchy we need for the foot roll. Then we will drive the foot roll by the heel control.
 
-- **Skinning**
+- **Skinning:**
 Finally, having completed the building of the leg we will look at some skinning practices. I will share my workflow and a few tips and tricks that I use.
 
 I hope you enjoyed the session! 

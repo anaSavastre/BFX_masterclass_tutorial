@@ -13,9 +13,15 @@ class LegModule:
     '''
     Modules for constructing a leg.
 
+    Simple implementation following the logical stages of building a leg to facilitate the class demonstration. 
 
+    Parameters
+    ----------
+    name        : str : leg name
+    parent      : str : hook under which we are parenting our leg
+    legGuides  : str : name of the first joint in the leg chain. We will
+                        extract the hip, knee, ankle and toe control from these components
 
-    TODO: For production uses 
     '''
     def __init__(self, name, parent, legGuides):
         logging.info('Initializing Leg Module')
