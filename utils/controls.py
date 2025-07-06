@@ -1,6 +1,6 @@
 from maya import cmds as mc
 import json
-from . import static
+from BFX_masterclass import static
 
 
 class ctlStruct:

@@ -1,8 +1,10 @@
+import os
+
 from maya import cmds as mc
 from maya import OpenMaya as om
-import os, json
-from . import static
-from . import controlFn as ctlFn
+
+from BFX_masterclass.utils import controls as ctlFn
+from BFX_masterclass import static
 
 
 def build_rig_scene(assetName):
@@ -35,7 +37,7 @@ def build_rig_scene(assetName):
 
     # Create our hierarchy
     characterGroup = mc.createNode('transform', name=static.characterGroup)
-    masterWalkCtl = ctlFn.build_masterWalk_control('masterWalk', name=static.      masterWalk, parent=characterGroup)
+    masterWalkCtl = ctlFn.build_masterWalk_control('masterWalk', name=static.masterWalk, parent=characterGroup)
     ctlFn.scale_control(masterWalkCtl, 5)
 
     # Parent geometry group
